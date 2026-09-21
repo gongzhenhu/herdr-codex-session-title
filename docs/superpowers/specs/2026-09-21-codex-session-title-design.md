@@ -134,3 +134,14 @@ first) found:
    04:46:42Z). Fix: detached 6s poller on Stop-time miss.
 4. Docs confirm codex payloads DO include `prompt` (UserPromptSubmit) and
    `hook_event_name` (all events); the prompt fallback is valid.
+
+Second live round (13:01–13:04): user restarted a session and saw the old
+title persist. Reconstruction: the old session's Stop poller (6s lifetime)
+outlived the session; the new session's SessionStart cleared the title, then
+the old poller re-attached the old title. (The final title on the pane was
+actually the NEW session's own thread_name — the user greeted again and
+Codex named both sessions "回应问候".) Fix: `pane_still_ours()` — before a
+late report the poller queries `herdr pane list` and aborts if the pane's
+`agent_session` is now bound to a different session id. Fail-open when
+herdr cannot be queried. Verified with stubbed pane-list responses: rebound
+pane → no report; same-session pane → report lands.

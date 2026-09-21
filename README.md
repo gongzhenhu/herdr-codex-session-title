@@ -18,7 +18,10 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
     prompt's first 60 characters
   - `Stop` — reports the indexed title; Codex writes `thread_name` a few
     seconds *after* the turn ends, so on a miss a detached poller retries
-    for up to 6s (the hook itself returns instantly)
+    for up to 6s (the hook itself returns instantly). Before a late report
+    the poller re-checks `herdr pane list`: if the pane has been taken over
+    by a different session meanwhile, the stale title is dropped instead of
+    resurrected.
 - Titles are read **locally and read-only** from `~/.codex/session_index.jsonl`
   (`{"id": ..., "thread_name": ..., "updated_at": ...}`, append-only; the last
   line per session id wins).

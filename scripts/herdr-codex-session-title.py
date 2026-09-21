@@ -137,6 +137,32 @@ def _report_metadata(pane_id, extra):
         pass
 
 
+def pane_still_ours(pane_id, session_id):
+    """False when the pane has since been bound to a DIFFERENT agent session.
+
+    Guards the poller against resurrecting a stale title: if the old session
+    ends and a new one starts within the poll window, the new session's
+    SessionStart clears the title and agent-state rebinds the pane — a late
+    report from the old session's poller must not re-attach the old title.
+    Fail-open: if herdr cannot be queried, report anyway.
+    """
+    herdr_bin = os.environ.get("HERDR_BIN_PATH") or "herdr"
+    try:
+        out = subprocess.run(
+            [herdr_bin, "pane", "list"],
+            capture_output=True, text=True, timeout=2,
+        )
+        panes = json.loads(out.stdout).get("result", {}).get("panes", [])
+        for pane in panes:
+            if pane.get("pane_id") != pane_id:
+                continue
+            bound = (pane.get("agent_session") or {}).get("value")
+            return bound in (None, "", session_id)
+        return True
+    except Exception:
+        return True
+
+
 def poll_mode(index_path, session_id, pane_id):
     # Codex writes thread_name to the session index a few seconds AFTER the
     # Stop hook fires (observed ~3s). Retry briefly in a detached process so
@@ -145,7 +171,8 @@ def poll_mode(index_path, session_id, pane_id):
     while time.time() < deadline:
         title = title_from_index(index_path, session_id)
         if title:
-            report(pane_id, title)
+            if pane_still_ours(pane_id, session_id):
+                report(pane_id, title)
             return
         time.sleep(POLL_INTERVAL)
 
