@@ -16,9 +16,13 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
     a session; SessionStart only fires when the first message is sent.
     Without SessionEnd, reopening Codex would keep showing the previous
     session's title until a message is typed.
-  - `SessionStart` — backstop clear for sessions that died without a
-    SessionEnd (crash, kill -9), then reports the resumed session's title
-    if the index already knows one
+  - `SessionStart` — reports the resumed session's title if the index
+    already knows one. It deliberately never clears: Codex fires
+    SessionStart **twice** around the first message of a session, with a
+    UserPromptSubmit report in between — clearing there would wipe the
+    user's own prompt title mid-turn. SessionEnd does the clearing; a
+    session killed without one is cleaned up by the next session's first
+    report.
   - `UserPromptSubmit` — reports the indexed title, falling back to the
     prompt's first 60 characters. Codex's own internal title-generation
     request also fires this event with a template prompt; that is filtered

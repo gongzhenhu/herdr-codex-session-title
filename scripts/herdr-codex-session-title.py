@@ -222,11 +222,15 @@ def hook_mode():
         clear_reported_title(pane_id)
         return
 
-    if event == "start":
-        # Backstop for sessions that died without a SessionEnd (kill -9,
-        # crash): clear whatever the previous session left behind, then
-        # report the resumed session's title if the index knows one.
-        clear_reported_title(pane_id)
+    # The start event must NOT clear the title. Codex fires SessionStart
+    # TWICE around the first message of a lazy session (once at creation,
+    # once ~3s later), and a UserPromptSubmit report lands in between — a
+    # start-time clear would wipe the user's own prompt title mid-turn
+    # (observed live: start → prompt/report → start/clear → gap until the
+    # Stop poller reports the real title). SessionEnd handles normal
+    # cleanup; if a session died without one, the stale title is
+    # overwritten by the next session's first report. Start therefore only
+    # re-reports a resumed session's title below, if the index knows one.
 
     session_id = session_id_from_input(hook_input)
     if not session_id:

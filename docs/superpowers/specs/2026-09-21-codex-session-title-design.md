@@ -169,3 +169,14 @@ old title after reopening Codex. Root causes found:
 Happy path verified live in the scratch pane: UserPromptSubmit reported the
 user's prompt as interim title; after the turn the poller replaced it with
 the generated thread_name "列出项目文件" (~3s after Stop).
+
+Fourth round (13:28, user report: prompt title flashes then vanishes
+mid-turn): instrumented live repro on wP:p6. Codex fires SessionStart TWICE
+around the first message of a lazy session (13:29:06.1 creation start,
+13:29:09.6 second start ~3.5s later) with the UserPromptSubmit report
+landing in between. The second start-time clear wiped the user's prompt
+title, leaving a gap until the Stop poller reported the real title. Fix:
+the start event no longer clears — it only re-reports a resumed session's
+indexed title. SessionEnd owns cleanup; a kill-9'd session's stale title is
+overwritten by the next session's first report. Verified after redeploy:
+first-message prompt title persists through the turn.
