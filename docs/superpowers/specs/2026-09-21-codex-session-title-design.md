@@ -62,12 +62,18 @@ bcihanc deploys to `~/.claude/hooks/`.
 Session id resolution order: payload `session_id` → env `CODEX_THREAD_ID` →
 uuid parsed from `transcript_path` basename.
 
-Report/clear commands:
+Report/clear commands (legacy token syntax — see "Post-deploy debug" below):
 
 ```
-herdr pane report-metadata "$HERDR_PANE_ID" --source agent:title --agent codex --title "<t>"
-herdr pane report-metadata "$HERDR_PANE_ID" --source agent:title --agent codex --clear-title
+herdr pane report-metadata "$HERDR_PANE_ID" --source agent:title --agent codex --token title=<t>
+herdr pane report-metadata "$HERDR_PANE_ID" --source agent:title --agent codex --clear-token title
 ```
+
+Stop race: Codex writes `thread_name` to the session index ~3s AFTER the Stop
+hook fires (measured on a live session). On a Stop-time index miss the script
+spawns a detached poller (`poll` mode: retry every 300ms for up to 6s, report
+when the title lands) so the hook returns instantly and Codex is never
+delayed.
 
 ## Deliberate differences from the Claude plugin
 
@@ -75,7 +81,8 @@ herdr pane report-metadata "$HERDR_PANE_ID" --source agent:title --agent codex -
    `ai-title`/`custom-title` records).
 2. No SessionEnd hook in Codex → stale-title cleanup moves to SessionStart.
 3. Event passed as wrapper argument (payload lacks `hook_event_name`).
-4. Current `--title`/`--clear-title` syntax instead of legacy `--token`.
+4. ~~Current `--title`/`--clear-title` syntax~~ REVERTED to legacy
+   `--token title=` (see debug findings below).
 5. Dropped Claude-specific paths: sessions-index.json legacy fallback,
    Cursor env detection, subagent filtering (SubagentStart/Stop simply are
    not registered).
@@ -109,3 +116,21 @@ atomic (tempfile + `os.replace`).
 Develop locally with `herdr plugin link`; later optionally publish to GitHub
 and switch to `herdr plugin install <user>/herdr-codex-session-title` so both
 title plugins sit side by side under `~/.config/herdr/plugins/github/`.
+
+## Post-deploy debug (2026-09-21, first live session)
+
+Symptom: pane title never appeared. Investigation (systematic, evidence
+first) found:
+
+1. Hooks fired and trust entries were written (config.toml
+   `hooks.state` gained entries for our three commands during the session;
+   loongsuite state files prove UserPromptSubmit ran).
+2. **Primary root cause**: herdr 0.9.1 accepts `--title` at the CLI but the
+   server silently drops it. Isolation matrix: `--title`+codex → no effect;
+   `--token title=`+claude → works; `--token title=`+codex cross-pane →
+   works. Fix: use the legacy `--token`/`--clear-token` syntax.
+3. **Secondary**: Stop fires ~3s before `thread_name` lands in the index
+   (rollout timeline: task_complete 04:46:39Z vs index updated_at
+   04:46:42Z). Fix: detached 6s poller on Stop-time miss.
+4. Docs confirm codex payloads DO include `prompt` (UserPromptSubmit) and
+   `hook_event_name` (all events); the prompt fallback is valid.

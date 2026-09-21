@@ -14,14 +14,20 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
   - `SessionStart` — clears the stale pane title (Codex has **no SessionEnd
     hook**, so cleanup happens when the next session takes over the pane),
     then reports the resumed session's title if the index already knows one
-  - `UserPromptSubmit` — reports the indexed title, falling back to the prompt
-  - `Stop` — reports the indexed title (Codex usually generated it by now)
+  - `UserPromptSubmit` — reports the indexed title, falling back to the
+    prompt's first 60 characters
+  - `Stop` — reports the indexed title; Codex writes `thread_name` a few
+    seconds *after* the turn ends, so on a miss a detached poller retries
+    for up to 6s (the hook itself returns instantly)
 - Titles are read **locally and read-only** from `~/.codex/session_index.jsonl`
   (`{"id": ..., "thread_name": ..., "updated_at": ...}`, append-only; the last
   line per session id wins).
 - Reporting goes through
-  `herdr pane report-metadata <pane> --source agent:title --agent codex --title ...`
-  — display-only pane metadata, same source token as the Claude plugin.
+  `herdr pane report-metadata <pane> --source agent:title --agent codex --token title=...`
+  — display-only pane metadata, same source token and same (legacy) syntax as
+  the Claude plugin. Note: herdr 0.9.x's newer `--title` flag is accepted by
+  the CLI but silently dropped by the server; `--token` is the syntax that
+  actually works.
 - Fully fail-open: every error path exits 0 silently so a title lookup or
   herdr outage can never disturb Codex. Outside a herdr-managed pane
   (`HERDR_ENV` / `HERDR_SOCKET_PATH` / `HERDR_PANE_ID` unset) the hook is a
@@ -59,7 +65,8 @@ herdr plugin unlink local.codex-session-title
 | Title source | `ai-title`/`custom-title` records in the transcript JSONL | `thread_name` in `session_index.jsonl` |
 | Stale-title cleanup | on `SessionEnd` | on `SessionStart` (Codex has no SessionEnd hook) |
 | Event detection | `hook_event_name` in the payload | explicit wrapper argument (`start`/`prompt`/`stop`) — Codex payloads don't carry the event name |
-| Report syntax | `--token title=...` (older herdr) | `--title` / `--clear-title` (current herdr) |
+| Report syntax | `--token title=...` | same (`--title` silently dropped by herdr 0.9.x server) |
+| Late title after Stop | n/a (Claude writes ai-title before Stop) | detached 6s poller covers Codex's ~3s index-write delay |
 
 ## Development
 

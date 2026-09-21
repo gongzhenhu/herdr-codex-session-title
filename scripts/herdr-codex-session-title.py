@@ -2,24 +2,33 @@
 """Reports the Codex CLI session title to herdr as pane metadata title.
 
 Modes:
-  (no args)                              hook mode: Codex hook input JSON on stdin
-  extract <index_path> <session_id>      print extracted title (test entrypoint)
+  (no args)                                   hook mode: Codex hook input JSON on stdin
+  extract <index_path> <session_id>           print extracted title (test entrypoint)
+  poll <index_path> <session_id> <pane_id>    retry title lookup briefly, report when
+                                              it appears (used for the Stop race)
 
 Hook mode reads the event name from HERDR_TITLE_EVENT (start|prompt|stop),
 set by the shell wrapper from its first argument. Codex hook payloads carry
-no hook_event_name field, so the event is passed explicitly at registration
-time (see install.sh).
+hook_event_name, but the event is also passed explicitly at registration
+time (see install.sh), which keeps the wrapper self-describing.
+
+Metadata is reported with the legacy --token title=... syntax: herdr 0.9.x
+accepts --title at the CLI but the server silently drops it; --token is what
+the Claude sibling plugin uses and it works.
 """
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 
 SOURCE = "agent:title"
 AGENT = "codex"
 MAX_TITLE_CHARS = 120
 MAX_PROMPT_CHARS = 60
+POLL_SECONDS = 6.0
+POLL_INTERVAL = 0.3
 
 # Codex rollout file names embed the session uuid:
 #   rollout-2026-09-20T17-59-15-01a0be41-7223-7212-9ede-70e2d73580db.jsonl
@@ -103,11 +112,11 @@ def extract_title(index_path, session_id):
 
 
 def report(pane_id, title):
-    _report_metadata(pane_id, ["--title", title])
+    _report_metadata(pane_id, ["--token", "title={}".format(title)])
 
 
 def clear_reported_title(pane_id):
-    _report_metadata(pane_id, ["--clear-title"])
+    _report_metadata(pane_id, ["--clear-token", "title"])
 
 
 def _report_metadata(pane_id, extra):
@@ -123,6 +132,33 @@ def _report_metadata(pane_id, extra):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=2,
+        )
+    except Exception:
+        pass
+
+
+def poll_mode(index_path, session_id, pane_id):
+    # Codex writes thread_name to the session index a few seconds AFTER the
+    # Stop hook fires (observed ~3s). Retry briefly in a detached process so
+    # the hook itself returns instantly and Codex is never delayed.
+    deadline = time.time() + POLL_SECONDS
+    while time.time() < deadline:
+        title = title_from_index(index_path, session_id)
+        if title:
+            report(pane_id, title)
+            return
+        time.sleep(POLL_INTERVAL)
+
+
+def spawn_poller(index_path, session_id, pane_id):
+    try:
+        subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__),
+             "poll", index_path, session_id, pane_id],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
     except Exception:
         pass
@@ -157,9 +193,13 @@ def hook_mode():
             cleaned = sanitize(prompt)
             if cleaned:
                 title = cleaned[:MAX_PROMPT_CHARS]
-    if not title:
+    if title:
+        report(pane_id, title)
         return
-    report(pane_id, title)
+    if event == "stop":
+        # Title not indexed yet (Codex generates it after the turn ends):
+        # let a detached poller pick it up once it lands.
+        spawn_poller(session_index_path(), session_id, pane_id)
 
 
 def main():
@@ -169,6 +209,12 @@ def main():
         if not title:
             return 1
         print(title)
+        return 0
+    if args[:1] == ["poll"] and len(args) == 4:
+        try:
+            poll_mode(args[1], args[2], args[3])
+        except Exception:
+            pass
         return 0
     try:
         hook_mode()
