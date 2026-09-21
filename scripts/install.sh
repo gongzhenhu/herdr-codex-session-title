@@ -23,12 +23,14 @@ import tempfile
 settings_path = os.environ["SETTINGS_PATH"]
 hook_sh = os.environ["HOOK_SH"]
 marker = "herdr-codex-session-title.sh"
-# Codex hook payloads carry no hook_event_name, so the registration passes
-# the event to the wrapper explicitly.
+# event -> (wrapper argument, timeout). Codex clamps SessionEnd hook
+# timeouts to 3s. The wrapper argument doubles as the event name since
+# payloads are not relied on for event detection.
 events = {
-    "SessionStart": "start",
-    "UserPromptSubmit": "prompt",
-    "Stop": "stop",
+    "SessionStart": ("start", 10),
+    "UserPromptSubmit": ("prompt", 10),
+    "Stop": ("stop", 10),
+    "SessionEnd": ("end", 3),
 }
 
 settings = {}
@@ -45,7 +47,7 @@ if not isinstance(settings, dict):
 hooks = settings.setdefault("hooks", {})
 if not isinstance(hooks, dict):
     raise SystemExit("error: hooks.json 'hooks' is not a JSON object; refusing to modify")
-for event, arg in events.items():
+for event, (arg, timeout) in events.items():
     entries = hooks.setdefault(event, [])
     if not isinstance(entries, list):
         raise SystemExit("error: hooks.json 'hooks.{}' is not a list; refusing to modify".format(event))
@@ -69,7 +71,7 @@ for event, arg in events.items():
             {
                 "type": "command",
                 "command": "sh '{}' {}".format(hook_sh, arg),
-                "timeout": 10,
+                "timeout": timeout,
             }
         ],
         "matcher": "*",

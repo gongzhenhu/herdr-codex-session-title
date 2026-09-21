@@ -10,12 +10,19 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
 
 ## How it works
 
-- Registers three Codex CLI hooks (`features.hooks`) in `~/.codex/hooks.json`:
-  - `SessionStart` — clears the stale pane title (Codex has **no SessionEnd
-    hook**, so cleanup happens when the next session takes over the pane),
-    then reports the resumed session's title if the index already knows one
+- Registers four Codex CLI hooks (`features.hooks`) in `~/.codex/hooks.json`:
+  - `SessionEnd` — clears the pane title the moment a session exits.
+    Important because **Codex sessions start lazily**: the TUI alone is not
+    a session; SessionStart only fires when the first message is sent.
+    Without SessionEnd, reopening Codex would keep showing the previous
+    session's title until a message is typed.
+  - `SessionStart` — backstop clear for sessions that died without a
+    SessionEnd (crash, kill -9), then reports the resumed session's title
+    if the index already knows one
   - `UserPromptSubmit` — reports the indexed title, falling back to the
-    prompt's first 60 characters
+    prompt's first 60 characters. Codex's own internal title-generation
+    request also fires this event with a template prompt; that is filtered
+    out and never shown.
   - `Stop` — reports the indexed title; Codex writes `thread_name` a few
     seconds *after* the turn ends, so on a miss a detached poller retries
     for up to 6s (the hook itself returns instantly). Before a late report

@@ -24,7 +24,7 @@ try:
     hooks = settings.get("hooks", {}) if isinstance(settings, dict) else {}
     if not isinstance(hooks, dict):
         hooks = {}
-    for event in ["SessionStart", "UserPromptSubmit", "Stop"]:
+    for event in ["SessionStart", "UserPromptSubmit", "Stop", "SessionEnd"]:
         entries = hooks.get(event, [])
         if not isinstance(entries, list):
             entries = []

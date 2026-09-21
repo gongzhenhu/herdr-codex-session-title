@@ -145,3 +145,27 @@ late report the poller queries `herdr pane list` and aborts if the pane's
 `agent_session` is now bound to a different session id. Fail-open when
 herdr cannot be queried. Verified with stubbed pane-list responses: rebound
 pane → no report; same-session pane → report lands.
+
+Third round (13:09–13:12, fully autonomous repro via `herdr pane
+split`/`run`/`wait-output`/`read` in a scratch pane): user still saw the
+old title after reopening Codex. Root causes found:
+
+1. **Codex sessions are lazy.** Opening the TUI does not create a session;
+   SessionStart fires only when the first message is sent. The user's
+   reopened Codex (rollouts 01a0c257/01a0c259 — both message-less, identical
+   18KB sizes) never fired SessionStart, so the clear never ran. Fix:
+   register **SessionEnd** (Codex DOES have it — confirmed in
+   /etc/codex/hooks.json and official payload docs; the earlier assumption
+   that it lacked SessionEnd was wrong) to clear the title on session exit.
+   SessionStart clear stays as a crash backstop. Codex clamps SessionEnd
+   hook timeouts to 3s.
+2. **Codex fires UserPromptSubmit for its own internal title-generation
+   request**, whose prompt is the template "Generate a concise,
+   single-line task title of at most 36 characters..." — our prompt
+   fallback displayed it as a 60-char garbage title mid-turn (this also
+   explains the earlier mystery token on wP:p3). Fix: prefix filter
+   INTERNAL_TITLE_PROMPT_PREFIX.
+
+Happy path verified live in the scratch pane: UserPromptSubmit reported the
+user's prompt as interim title; after the turn the poller replaced it with
+the generated thread_name "列出项目文件" (~3s after Stop).

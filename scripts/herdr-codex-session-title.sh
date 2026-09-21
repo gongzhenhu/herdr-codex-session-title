@@ -1,12 +1,12 @@
 #!/bin/sh
 # installed by the local.codex-session-title herdr plugin
 # reinstalling the plugin overwrites this file; do not edit in place.
-# Usage: herdr-codex-session-title.sh <start|prompt|stop>
+# Usage: herdr-codex-session-title.sh <start|prompt|stop|end>
 set -eu
 
 event="${1:-}"
 case "$event" in
-  start|prompt|stop) ;;
+  start|prompt|stop|end) ;;
   *) exit 0 ;;
 esac
 

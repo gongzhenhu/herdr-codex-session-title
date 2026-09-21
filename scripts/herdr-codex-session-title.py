@@ -7,10 +7,16 @@ Modes:
   poll <index_path> <session_id> <pane_id>    retry title lookup briefly, report when
                                               it appears (used for the Stop race)
 
-Hook mode reads the event name from HERDR_TITLE_EVENT (start|prompt|stop),
+Hook mode reads the event name from HERDR_TITLE_EVENT (start|prompt|stop|end),
 set by the shell wrapper from its first argument. Codex hook payloads carry
 hook_event_name, but the event is also passed explicitly at registration
 time (see install.sh), which keeps the wrapper self-describing.
+
+Note on Codex session lifecycle: a session only begins (and SessionStart
+only fires) when the FIRST message is sent; the TUI alone does not start
+one. That is why SessionEnd is registered too — it clears the pane title
+the moment a session exits, instead of waiting for the next session's
+first message.
 
 Metadata is reported with the legacy --token title=... syntax: herdr 0.9.x
 accepts --title at the CLI but the server silently drops it; --token is what
@@ -29,6 +35,10 @@ MAX_TITLE_CHARS = 120
 MAX_PROMPT_CHARS = 60
 POLL_SECONDS = 6.0
 POLL_INTERVAL = 0.3
+
+# Codex fires UserPromptSubmit for its OWN internal title-generation
+# request too, whose prompt is this template — never show it as a title.
+INTERNAL_TITLE_PROMPT_PREFIX = "Generate a concise, single-line task title"
 
 # Codex rollout file names embed the session uuid:
 #   rollout-2026-09-20T17-59-15-01a0be41-7223-7212-9ede-70e2d73580db.jsonl
@@ -204,10 +214,18 @@ def hook_mode():
     if not isinstance(hook_input, dict):
         hook_input = {}
 
+    if event == "end":
+        # Session over: drop the pane title immediately so the next session
+        # in this pane starts clean (Codex sessions begin lazily — only on
+        # the first message — so waiting for the next SessionStart would
+        # leave the stale title up indefinitely).
+        clear_reported_title(pane_id)
+        return
+
     if event == "start":
-        # Codex has no SessionEnd hook: drop the stale title when a new
-        # session takes over the pane, then report the resumed session's
-        # title below if the index already knows one.
+        # Backstop for sessions that died without a SessionEnd (kill -9,
+        # crash): clear whatever the previous session left behind, then
+        # report the resumed session's title if the index knows one.
         clear_reported_title(pane_id)
 
     session_id = session_id_from_input(hook_input)
@@ -216,7 +234,9 @@ def hook_mode():
     title = extract_title(session_index_path(), session_id)
     if not title and event == "prompt":
         prompt = hook_input.get("prompt")
-        if isinstance(prompt, str):
+        if isinstance(prompt, str) and not prompt.startswith(
+            INTERNAL_TITLE_PROMPT_PREFIX
+        ):
             cleaned = sanitize(prompt)
             if cleaned:
                 title = cleaned[:MAX_PROMPT_CHARS]
