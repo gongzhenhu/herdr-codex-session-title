@@ -1,0 +1,24 @@
+id = "local.codex-session-title"
+name = "Codex Session Title"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Reports the Codex CLI session title (thread_name from the session index) as the herdr pane metadata title"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "install"
+title = "Install Codex hook"
+contexts = ["workspace"]
+command = ["sh", "scripts/install.sh"]
+
+[[actions]]
+id = "uninstall"
+title = "Uninstall Codex hook"
+contexts = ["workspace"]
+command = ["sh", "scripts/uninstall.sh"]
+
+[[actions]]
+id = "status"
+title = "Show hook installation status"
+contexts = ["workspace"]
+command = ["sh", "scripts/status.sh"]
