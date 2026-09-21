@@ -28,11 +28,13 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
     request also fires this event with a template prompt; that is filtered
     out and never shown.
   - `Stop` — reports the indexed title; Codex writes `thread_name` a few
-    seconds *after* the turn ends, so on a miss a detached poller retries
-    for up to 6s (the hook itself returns instantly). Before a late report
-    the poller re-checks `herdr pane list`: if the pane has been taken over
-    by a different session meanwhile, the stale title is dropped instead of
-    resurrected.
+    seconds *after* the turn ends (measured up to ~6s), so on a miss a
+    detached poller retries for up to 20s (the hook itself returns
+    instantly). Before a late report the poller re-checks `herdr pane
+    list`: if the pane has been taken over by a different session
+    meanwhile, the stale title is dropped instead of resurrected. Note
+    that Codex's internal title-generation session fires Stop too; the
+    guard drops its reports, since the pane is bound to the real session.
 - Titles are read **locally and read-only** from `~/.codex/session_index.jsonl`
   (`{"id": ..., "thread_name": ..., "updated_at": ...}`, append-only; the last
   line per session id wins).

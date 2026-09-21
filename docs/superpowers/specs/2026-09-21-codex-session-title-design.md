@@ -180,3 +180,13 @@ the start event no longer clears — it only re-reports a resumed session's
 indexed title. SessionEnd owns cleanup; a kill-9'd session's stale title is
 overwritten by the next session's first report. Verified after redeploy:
 first-message prompt title persists through the turn.
+
+Fifth round (13:33, poller instrumented live): the poller works end to end
+(POLL_START → POLL_FOUND → PANE_CHECK → REPORT; prompt title "谢谢" replaced
+by generated "致谢" mid-observation). Also confirmed: Codex's internal
+title-generation session fires its own Stop, spawning a poller for a sid
+that never appears in the index (times out harmlessly) or that the
+pane-ownership guard rejects. Measured title-generation latency of 5.8s —
+the 6s poll window was marginal, widened to 20s at 0.5s intervals. Turns
+whose title lands later (or never — observed once) are covered by the next
+hook event's index lookup.

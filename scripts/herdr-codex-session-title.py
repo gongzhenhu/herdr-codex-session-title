@@ -33,8 +33,8 @@ SOURCE = "agent:title"
 AGENT = "codex"
 MAX_TITLE_CHARS = 120
 MAX_PROMPT_CHARS = 60
-POLL_SECONDS = 6.0
-POLL_INTERVAL = 0.3
+POLL_SECONDS = 20.0
+POLL_INTERVAL = 0.5
 
 # Codex fires UserPromptSubmit for its OWN internal title-generation
 # request too, whose prompt is this template — never show it as a title.
