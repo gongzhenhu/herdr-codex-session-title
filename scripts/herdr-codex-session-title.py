@@ -214,12 +214,31 @@ def hook_mode():
     if not isinstance(hook_input, dict):
         hook_input = {}
 
+    session_id = session_id_from_input(hook_input)
+
     if event == "end":
-        # Session over: drop the pane title immediately so the next session
-        # in this pane starts clean (Codex sessions begin lazily — only on
-        # the first message — so waiting for the next SessionStart would
-        # leave the stale title up indefinitely).
-        clear_reported_title(pane_id)
+        # Session over: drop the pane title so the next session in this pane
+        # starts clean (Codex sessions begin lazily — only on the first
+        # message — so waiting for the next SessionStart would leave the
+        # stale title up indefinitely).
+        # BUT: Codex's internal title-generation sub-session fires its own
+        # SessionEnd (reason=other, separate session id) while the real
+        # session is still alive — clearing there would wipe the live
+        # title (observed 13:44). Only clear when the session that ends is
+        # the one the pane belongs to (or the pane is unbound, or the
+        # payload has no id we could check).
+        if not session_id or pane_still_ours(pane_id, session_id):
+            clear_reported_title(pane_id)
+        return
+
+    if not session_id:
+        return
+
+    # Codex runs internal sub-sessions (title generation etc.) inside the
+    # same pane with their own session ids; agent-state never binds those
+    # (CODEX_THREAD_ID guard), so the pane stays bound to the real session.
+    # Ignore events from any session that is not the pane's.
+    if not pane_still_ours(pane_id, session_id):
         return
 
     # The start event must NOT clear the title. Codex fires SessionStart
@@ -232,9 +251,6 @@ def hook_mode():
     # overwritten by the next session's first report. Start therefore only
     # re-reports a resumed session's title below, if the index knows one.
 
-    session_id = session_id_from_input(hook_input)
-    if not session_id:
-        return
     title = extract_title(session_index_path(), session_id)
     if not title and event == "prompt":
         prompt = hook_input.get("prompt")

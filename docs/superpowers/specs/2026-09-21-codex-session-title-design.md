@@ -190,3 +190,18 @@ pane-ownership guard rejects. Measured title-generation latency of 5.8s —
 the 6s poll window was marginal, widened to 20s at 0.5s intervals. Turns
 whose title lands later (or never — observed once) are covered by the next
 hook event's index lookup.
+
+Sixth round (13:42–13:44, user report: title appears, then vanishes after
+the answer completes): instrumented live repro on wP:p7. Codex's internal
+title-generation sub-session runs with its OWN session id and fires the
+full hook lifecycle in the same pane: SessionStart(source=startup),
+UserPromptSubmit(internal template prompt), Stop, and — ~60–80s later —
+SessionEnd(reason=other). Our unconditional end-time clear wiped the live
+session's title (observed 13:44:19 CLEAR(end) with the internal sid while
+the real session was still working). Fix: sub-session guard — every event
+now checks `pane_still_ours()` first; events whose session id is not the
+pane's bound session (agent-state only binds the real one, protected by
+its CODEX_THREAD_ID check) are ignored entirely, including end-time
+clearing. Verified with stubbed pane-list: internal end → no clear; real
+end → clear; internal prompt/stop → no report/no poller; real events
+unaffected.

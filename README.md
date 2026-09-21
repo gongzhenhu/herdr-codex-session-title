@@ -15,7 +15,15 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
     Important because **Codex sessions start lazily**: the TUI alone is not
     a session; SessionStart only fires when the first message is sent.
     Without SessionEnd, reopening Codex would keep showing the previous
-    session's title until a message is typed.
+    session's title until a message is typed. Only the pane's own session
+    may clear — Codex's internal title-generation sub-session fires its
+    own SessionEnd (`reason=other`) while the real session is still alive,
+    and that must not wipe the live title.
+- **Sub-session guard**: Codex runs internal sub-sessions (title
+  generation etc.) in the same pane, each with its own session id firing
+  the full hook lifecycle. Every event checks `herdr pane list` first and
+  ignores sessions that are not the one the pane is bound to (agent-state
+  only ever binds the real session, guarded by `CODEX_THREAD_ID`).
   - `SessionStart` — reports the resumed session's title if the index
     already knows one. It deliberately never clears: Codex fires
     SessionStart **twice** around the first message of a session, with a
