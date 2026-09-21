@@ -45,12 +45,15 @@ exists the first 60 characters of the user's prompt serve as a fallback title.
 
 Requires `python3`. No watcher process, no network, nothing leaves the machine.
 
-## Install (development, from a local checkout)
+## Install
 
 ```sh
-herdr plugin link /path/to/codex-session-title
-herdr plugin action invoke install --plugin local.codex-session-title
+herdr plugin install gongzhenhu/herdr-codex-session-title
+herdr plugin action invoke install --plugin gongzhenhu.herdr-codex-session-title
 ```
+
+(Development alternative: `herdr plugin link <checkout>` and invoke the
+`install` action the same way.)
 
 Restart already-running Codex sessions; Codex may ask you to trust the new
 hooks once.
@@ -58,9 +61,9 @@ hooks once.
 ## Status / uninstall
 
 ```sh
-herdr plugin action invoke status --plugin local.codex-session-title
-herdr plugin action invoke uninstall --plugin local.codex-session-title
-herdr plugin unlink local.codex-session-title
+herdr plugin action invoke status --plugin gongzhenhu.herdr-codex-session-title
+herdr plugin action invoke uninstall --plugin gongzhenhu.herdr-codex-session-title
+herdr plugin uninstall gongzhenhu.herdr-codex-session-title
 ```
 
 `install`/`uninstall` are idempotent: they replace only their own entries in

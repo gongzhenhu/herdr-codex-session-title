@@ -1,5 +1,5 @@
 #!/bin/sh
-# installed by the local.codex-session-title herdr plugin
+# installed by the gongzhenhu.herdr-codex-session-title herdr plugin
 # reinstalling the plugin overwrites this file; do not edit in place.
 # Usage: herdr-codex-session-title.sh <start|prompt|stop|end>
 set -eu
